@@ -6,15 +6,11 @@ import requests
 import feedparser
 from bs4 import BeautifulSoup
 
-# IDE ILLESZD BE a Discordból kimásolt Webhook URL-t!
 DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1520529578928377886/dJVhNw34V8YYp-IMSOprhx2qQ9MU1lLs7b0BpZKmiMqe-VZclK3EW7bccaZX5Vk6dooZ"
 
-# --- SMART KULCSSZÓ FIGYELŐ LISTA ---
-# Ha a paste oldalon ezen szavak bármelyike szerepel, a bot azonnal riasztani fog!
 FIGYELT_KULCSSZAVAK = ["critical", "database", "admin", "error", "config", "server", "backup", "vulnerability"]
 
 def kuld_discordra(szoveg, embed=None):
-    """Elküldi a talált adatokat a Discord csatornára"""
     payload = {"username": "Velox Crawler"}
     if embed:
         payload["embeds"] = [embed]
@@ -27,16 +23,14 @@ def kuld_discordra(szoveg, embed=None):
         print(f"[Velox] Discord küldési hiba: {e}")
 
 def target_oldalak_betoltese():
-    """Beolvassa a crawlandó oldalak listáját a sites.json fájlból"""
     try:
         with open("sites.json", "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
-        print(f"[Velox] Hiba a sites.json beolvasásakor: {e}")
+        print(f"[Velox] Hiba: {e}")
         return ["https://paste.org/archive", "https://index.hu/24ora/rss", "https://telex.hu/rss"]
 
 def teljes_cikk_szoveg_letoltese(url):
-    """Megnyitja a hírt és kikapja belőle a valódi szöveget"""
     try:
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         response = requests.get(url, headers=headers, timeout=10)
@@ -63,11 +57,10 @@ def teljes_cikk_szoveg_letoltese(url):
                         
             return "\n\n".join(paragrafusok)
     except Exception as e:
-        print(f"[Velox] Hiba a cikk letöltésekor ({url}): {e}")
+        print(f"[Velox] Hiba: {e}")
     return ""
 
 def hir_oldal_feldolgozas(rss_url, mar_ellenorzott):
-    """Hírek feldolgozása szép Discord formátumban"""
     try:
         feed = feedparser.parse(rss_url)
         for entry in feed.entries[:3]:
@@ -88,7 +81,6 @@ def hir_oldal_feldolgozas(rss_url, mar_ellenorzott):
                         if "image" in l.get("type", ""):
                             kep_url = l.get("href")
 
-                # Küldés kártyaként (rövidítve a Discord korlát miatt)
                 embed = {
                     "title": f"📰 {cim}",
                     "description": teljes_tartalom[:1500] + "...\n\n*(A cikk hossza miatt a Discordon rövidítve jelenik meg)*",
@@ -101,21 +93,20 @@ def hir_oldal_feldolgozas(rss_url, mar_ellenorzott):
                 kuld_discordra("", embed=embed)
                 mar_ellenorzott.add(link)
     except Exception as e:
-        print(f"[Velox] Hiba a híroldalon ({rss_url}): {e}")
+        print(f"[Velox] Hiba: {e}")
 
 def paste_oldal_feldolgozas(url, mar_ellenorzott):
-    """Pastebin típusú oldalak mélyebb elemzése és ellenőrzése"""
     try:
         headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
         response = requests.get(url, headers=headers, timeout=10)
         if response.status_code != 200:
-            print(f"[Velox] Nem sikerült elérni a főoldalt: {url} (Státusz: {response.status_code})")
+            print(f"[Velox] Státusz hiba: {response.status_code}")
             return
             
         soup = BeautifulSoup(response.text, "html.parser")
         linkek = ["https://paste.org" + a_tag["href"] for a_tag in soup.find_all("a", href=True) if "/paste/" in a_tag["href"]]
         
-        print(f"[Velox] {len(linkek)} darab friss paste linket találtam az archívumban.")
+        print(f"[Velox] {len(linkek)} db friss link.")
         
         for link in linkek[:5]:
             if link not in mar_ellenorzott:
@@ -129,7 +120,6 @@ def paste_oldal_feldolgozas(url, mar_ellenorzott):
                     
                     print(f" -> Elemzés: {link} ({meret_kb} KB) ... ", end="")
                     
-                    # 1. MINTÁK KERESÉSE (Regex)
                     email_minta = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
                     ipv4_minta  = r"\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b"
                     url_minta   = r"https?://[^\s]+"
@@ -138,17 +128,15 @@ def paste_oldal_feldolgozas(url, mar_ellenorzott):
                     ip_cimek = list(set(re.findall(ipv4_minta, szoveg)))
                     web_linkek = list(set(re.findall(url_minta, szoveg)))
                     
-                    # 2. KULCSSZAVAK KERESÉSE
                     talalt_szavak = [szo for szo in FIGYELT_KULCSSZAVAK if szo in szoveg_lowered]
                     
-                    # HA TALÁLTUNK BÁRMIT, KÜLDJÜK DISCORDRA
                     if emailek or ip_cimek or talalt_szavak:
                         print("TALÁLAT!")
                         
                         embed = {
                             "title": "📋 Velox Pastebin Monitor Találat",
                             "url": link,
-                            "color": 15158332, # Pirosas-narancs szín riasztáshoz
+                            "color": 15158332,
                             "description": f"**Forrás:** {link}\n**Adatméret:** {meret_kb} KB\n\n"
                         }
                         
@@ -160,4 +148,5 @@ def paste_oldal_feldolgozas(url, mar_ellenorzott):
                             embed["description"] += f"🌐 **IP címek (max 5):** {', '.join(ip_cimek[:5])}\n"
                         if web_linkek:
                             embed["description"] += f"🔗 **Belső linkek (max 3):** {', '.join(web_linkek[:3])}\n"
-                            embed["description"] += f"\n**Szövegkivonat:**\n
+                            
+                        embed["description"] += f"""\n**Szövegkivonat:**\n
