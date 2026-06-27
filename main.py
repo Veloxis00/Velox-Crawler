@@ -7,7 +7,7 @@ import feedparser
 from bs4 import BeautifulSoup
 
 # IDE ILLESZD BE a Discordból kimásolt Webhook URL-t!
-DISCORD_WEBHOOK_URL = "IDE_JÖN_A_TE_WEBHOOK_URL-ED"
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1520529578928377886/dJVhNw34V8YYp-IMSOprhx2qQ9MU1lLs7b0BpZKmiMqe-VZclK3EW7bccaZX5Vk6dooZ"
 
 # --- SMART KULCSSZÓ FIGYELŐ LISTA ---
 # Ha a paste oldalon ezen szavak bármelyike szerepel, a bot azonnal riasztani fog!
