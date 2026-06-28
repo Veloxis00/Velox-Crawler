@@ -8,14 +8,18 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 
 # ====================== HARDKODOLT WEBHOOK ======================
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1520529578928377886/dJVhNw34V8YYp-IMSOprhx2qQ9MU1lLs7b0BpZKmiMqe-VZclK3EW7bccaZX5Vk6dooZ"  # IDE TEDD A SAJÁT WEBHOOKODAT
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1520529578928377886/dJVhNw34V8YYp-IMSOprhx2qQ9MU1lLs7b0BpZKmiMqe-VZclK3EW7bccaZX5Vk6dooZ"  
 
-FIGYELT_KULCSSZAVAK = [
-    "password", "secret", "api_key", "apikey", "access_key", "private_key",
-    "credential", "token", "aws_secret", "discord_token", ".env", "config", "backup", "dump", "leak"
+# Magas prioritású kulcsszavak
+PRIORITAS_KULCSSZAVAK = [
+    "leak", "breach", "password", "dump", "vulnerability", "exploit", 
+    "ransomware", "szivárogtatás", "magyar péter", "pénz", "hivatal"
 ]
 
-PRIORITAS_KULCSSZAVAK = ["leak", "breach", "password", "dump", "vulnerability", "exploit", "ransomware"Trump,Magyar Péter,Pénz,Hivatal,Szivárogtatás]
+FIGYELT_KULCSSZAVAK = [
+    "password", "secret", "api_key", "credential", "token", "config", 
+    "backup", "admin", "root", "database", "ssh", "ftp"
+]
 
 def log(uzenet):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -63,7 +67,7 @@ def main():
     mar_ellenorzott = set()
     log("🚀 Velox Crawler elindult (Hardcoded Webhook)")
 
-    kuld_discordra("✅ **Velox Crawler elindult** - Hardcoded webhook verzió")
+    kuld_discordra("✅ **Velox Crawler elindult** - Hardcoded verzió")
 
     while True:
         try:
