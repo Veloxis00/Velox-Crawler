@@ -8,27 +8,42 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 
 # ====================== HARDKODOLT WEBHOOK ======================
-DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1520529578928377886/dJVhNw34V8YYp-IMSOprhx2qQ9MU1lLs7b0BpZKmiMqe-VZclK3EW7bccaZX5Vk6dooZ"  
+DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1520529578928377886/dJVhNw34V8YYp-IMSOprhx2qQ9MU1lLs7b0BpZKmiMqe-VZclK3EW7bccaZX5Vk6dooZ"
 
-# Magas prioritású kulcsszavak
-PRIORITAS_KULCSSZAVAK = [
-    "leak", "breach", "password", "dump", "vulnerability", "exploit", 
-    "ransomware", "szivárogtatás", "magyar péter", "pénz", "hivatal"
+# ====================== KULCSSZAVAK (könnyen bővíthető) ======================
+
+# Technikai / Biztonsági kulcsszavak (angol + magyar)
+TECH_KULCSSZAVAK = [
+    # Angol
+    "password", "secret", "api_key", "apikey", "access_key", "private_key", "credential",
+    "token", "dump", "leak", "breach", "data breach", "ransomware", "exploit", "vulnerability",
+    "config", "backup", "database", "ssh", "ftp", "vpn",
+    # Magyar
+    "jelszó", "titkos", "kulcs", "szivárogtatás", "adatbázis", "biztonsági rés", "kizsákmányolás"
 ]
 
-FIGYELT_KULCSSZAVAK = [
-    "password", "secret", "api_key", "credential", "token", "config", 
-    "backup", "admin", "root", "database", "ssh", "ftp"
+# Belpolitikai / Magyar politikai kulcsszavak
+BELPOLITIKAI_KULCSSZAVAK = [
+    "orbán", "magyar péter", "tisza párt", "fidesz", "dk", "momentum", "miép", "jobbik",
+    "kormány", "miniszterelnök", "parlament", "választás", "korrupció", "pénz", "hivatal",
+    "szuverenitás", "brüsszel", "brüsszeli"
 ]
+
+# Világpolitikai kulcsszavak
+VILAGPOLITIKAI_KULCSSZAVAK = [
+    "trump", "biden", "putin", "zelenszkij", "ukrajna", "oroszország", "kína", "taiwan",
+    "izrael", "palesztina", "gáza", "iráni", "észak-korea", "nato", "eu", "brüsszel"
+]
+
+# Összes kulcsszó egyben
+FIGYELT_KULCSSZAVAK = TECH_KULCSSZAVAK + BELPOLITIKAI_KULCSSZAVAK + VILAGPOLITIKAI_KULCSSZAVAK
 
 def log(uzenet):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{timestamp}] {uzenet}")
 
 def kuld_discordra(content=None, embed=None):
-    if not DISCORD_WEBHOOK_URL:
-        log("Nincs webhook URL!")
-        return
+    if not DISCORD_WEBHOOK_URL: return
     payload = {"username": "Velox Crawler"}
     if embed:
         payload["embeds"] = [embed]
@@ -45,8 +60,8 @@ def load_sites():
         with open("sites.json", "r", encoding="utf-8") as f:
             return json.load(f)
     except:
-        log("sites.json nem található, alapértelmezett értékeket használom.")
-        return ["https://paste.org/archive", "https://index.hu/24ora/rss", "https://telex.hu/rss"]
+        log("sites.json nem található")
+        return ["https://paste.org/archive", "https://index.hu/24ora/rss"]
 
 def teljes_cikk_letoltese(url):
     try:
@@ -61,13 +76,13 @@ def teljes_cikk_letoltese(url):
 
 def is_high_priority(title, content):
     text = (title + " " + content).lower()
-    return any(kw in text for kw in PRIORITAS_KULCSSZAVAK)
+    return any(kw in text for kw in TECH_KULCSSZAVAK)
 
 def main():
     mar_ellenorzott = set()
-    log("🚀 Velox Crawler elindult (Hardcoded Webhook)")
+    log("🚀 Velox Crawler elindult - Kétnyelvű keresés (magyar + angol)")
 
-    kuld_discordra("✅ **Velox Crawler elindult** - Hardcoded verzió")
+    kuld_discordra("✅ **Velox Crawler elindult** - Magyar + Angol kulcsszavakkal")
 
     while True:
         try:
@@ -75,34 +90,44 @@ def main():
 
             for site in sites:
                 try:
-                    if "paste.org" in site:
+                    if any(x in site for x in ["paste.org", "intelx", "dehashed", "snusbase", "leakcheck"]):
+                        # Paste / Leak oldalak
                         headers = {"User-Agent": "Mozilla/5.0"}
                         resp = requests.get(site, headers=headers, timeout=12)
                         soup = BeautifulSoup(resp.text, "html.parser")
                         linkek = ["https://paste.org" + a["href"] for a in soup.find_all("a", href=True) if a["href"].startswith("/paste/")]
 
-                        for link in linkek[:10]:
+                        for link in linkek[:15]:
                             if link in mar_ellenorzott: continue
 
                             raw_resp = requests.get(link.replace("/paste/", "/raw/"), timeout=10)
                             if raw_resp.status_code != 200: continue
 
-                            szoveg = raw_resp.text.lower()
-                            talalt = [kw for kw in FIGYELT_KULCSSZAVAK if kw in szoveg]
+                            szoveg = raw_resp.text
+                            szoveg_low = szoveg.lower()
 
-                            if talalt:
+                            talalt = [kw for kw in FIGYELT_KULCSSZAVAK if kw in szoveg_low]
+                            emailek = list(set(re.findall(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", szoveg)))
+
+                            if talalt or emailek:
+                                description = f"**Forrás:** {link}\n**Idő:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                                if talalt: description += f"⚠️ Kulcsszavak: {', '.join(talalt[:12])}\n"
+                                if emailek: description += f"📧 E-mailek: {', '.join(emailek[:12])}\n"
+
                                 embed = {
-                                    "title": "📋 Paste Találat",
+                                    "title": "📋 Paste / Dump Találat",
                                     "url": link,
                                     "color": 15158332,
-                                    "description": f"**Idő:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n**Kulcsszavak:** {', '.join(talalt)}"
+                                    "description": description[:4000]
                                 }
                                 kuld_discordra(embed=embed)
+
                             mar_ellenorzott.add(link)
 
                     else:
+                        # Híroldalak
                         feed = feedparser.parse(site)
-                        for entry in feed.entries[:5]:
+                        for entry in feed.entries[:6]:
                             link = entry.link
                             if link in mar_ellenorzott: continue
 
@@ -112,7 +137,7 @@ def main():
                             priority = is_high_priority(title, full_text)
 
                             embed = {
-                                "title": f"{'🔴 ' if priority else '📰 '} {title[:160]}",
+                                "title": f"{'🔴 ' if priority else '📰 '} {title[:170]}",
                                 "description": full_text[:3800] + ("..." if len(full_text) > 3800 else ""),
                                 "url": link,
                                 "color": 15158332 if priority else 3447003,
@@ -125,7 +150,7 @@ def main():
                 except Exception as e:
                     log(f"Hiba ({site}): {e}")
 
-            if len(mar_ellenorzott) > 6000:
+            if len(mar_ellenorzott) > 8000:
                 mar_ellenorzott.clear()
                 log("Emlékezet törölve")
 
@@ -134,7 +159,7 @@ def main():
 
         except Exception as e:
             log(f"KRITIKUS HIBA: {e}")
-            time.sleep(120)
+            time.sleep(180)
 
 
 if __name__ == "__main__":
