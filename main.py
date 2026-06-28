@@ -10,32 +10,28 @@ from datetime import datetime
 # ====================== HARDKODOLT WEBHOOK ======================
 DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1520529578928377886/dJVhNw34V8YYp-IMSOprhx2qQ9MU1lLs7b0BpZKmiMqe-VZclK3EW7bccaZX5Vk6dooZ"
 
-# ====================== KULCSSZAVAK (könnyen bővíthető) ======================
-
-# Technikai / Biztonsági kulcsszavak (angol + magyar)
+# ====================== KULCSSZAVAK ======================
+# 1. Technikai / Dump / Leak kulcsszavak
 TECH_KULCSSZAVAK = [
-    # Angol
     "password", "secret", "api_key", "apikey", "access_key", "private_key", "credential",
-    "token", "dump", "leak", "breach", "data breach", "ransomware", "exploit", "vulnerability",
-    "config", "backup", "database", "ssh", "ftp", "vpn",
-    # Magyar
-    "jelszó", "titkos", "kulcs", "szivárogtatás", "adatbázis", "biztonsági rés", "kizsákmányolás"
+    "token", "dump", "leak", "breach", "data breach", "szivárogtatás", "email dump",
+    "config", "backup", "database", "ssh", "ftp", "vpn", "admin", "root", "ransomware"
 ]
 
-# Belpolitikai / Magyar politikai kulcsszavak
+# 2. Magyar belpolitikai kulcsszavak
 BELPOLITIKAI_KULCSSZAVAK = [
     "orbán", "magyar péter", "tisza párt", "fidesz", "dk", "momentum", "miép", "jobbik",
     "kormány", "miniszterelnök", "parlament", "választás", "korrupció", "pénz", "hivatal",
-    "szuverenitás", "brüsszel", "brüsszeli"
+    "szuverenitás", "brüsszel", "brüsszeli", "eu", "nato"
 ]
 
-# Világpolitikai kulcsszavak
+# 3. Világpolitikai / Geopolitikai kulcsszavak
 VILAGPOLITIKAI_KULCSSZAVAK = [
     "trump", "biden", "putin", "zelenszkij", "ukrajna", "oroszország", "kína", "taiwan",
     "izrael", "palesztina", "gáza", "iráni", "észak-korea", "nato", "eu", "brüsszel"
 ]
 
-# Összes kulcsszó egyben
+# Összes kulcsszó
 FIGYELT_KULCSSZAVAK = TECH_KULCSSZAVAK + BELPOLITIKAI_KULCSSZAVAK + VILAGPOLITIKAI_KULCSSZAVAK
 
 def log(uzenet):
@@ -80,9 +76,9 @@ def is_high_priority(title, content):
 
 def main():
     mar_ellenorzott = set()
-    log("🚀 Velox Crawler elindult - Kétnyelvű keresés (magyar + angol)")
+    log("🚀 Velox Crawler elindult - Teljes kulcsszó készlet (tech + belpolitika + világ)")
 
-    kuld_discordra("✅ **Velox Crawler elindult** - Magyar + Angol kulcsszavakkal")
+    kuld_discordra("✅ **Velox Crawler elindult**
 
     while True:
         try:
@@ -91,16 +87,18 @@ def main():
             for site in sites:
                 try:
                     if any(x in site for x in ["paste.org", "intelx", "dehashed", "snusbase", "leakcheck"]):
-                        # Paste / Leak oldalak
+                        # Paste / Breach oldalak
                         headers = {"User-Agent": "Mozilla/5.0"}
                         resp = requests.get(site, headers=headers, timeout=12)
                         soup = BeautifulSoup(resp.text, "html.parser")
-                        linkek = ["https://paste.org" + a["href"] for a in soup.find_all("a", href=True) if a["href"].startswith("/paste/")]
+                        linkek = [a["href"] for a in soup.find_all("a", href=True) if any(p in a["href"] for p in ["/paste/", "/leak/", "/dump/"])]
 
-                        for link in linkek[:15]:
+                        for link in linkek[:12]:
+                            if not link.startswith("http"):
+                                link = "https://paste.org" + link if "paste.org" in site else link
                             if link in mar_ellenorzott: continue
 
-                            raw_resp = requests.get(link.replace("/paste/", "/raw/"), timeout=10)
+                            raw_resp = requests.get(link.replace("/paste/", "/raw/") if "paste.org" in link else link, timeout=10)
                             if raw_resp.status_code != 200: continue
 
                             szoveg = raw_resp.text
@@ -115,7 +113,7 @@ def main():
                                 if emailek: description += f"📧 E-mailek: {', '.join(emailek[:12])}\n"
 
                                 embed = {
-                                    "title": "📋 Paste / Dump Találat",
+                                    "title": "📋 Dump / Leak Találat",
                                     "url": link,
                                     "color": 15158332,
                                     "description": description[:4000]
