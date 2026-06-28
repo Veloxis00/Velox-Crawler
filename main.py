@@ -13,22 +13,12 @@ import io
 DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1520529578928377886/dJVhNw34V8YYp-IMSOprhx2qQ9MU1lLs7b0BpZKmiMqe-VZclK3EW7bccaZX5Vk6dooZ"
 
 # ====================== KULCSSZAVAK ======================
-TECH_KULCSSZAVAK = [
-    "password", "secret", "api_key", "apikey", "access_key", "private_key", "credential",
-    "token", "dump", "leak", "breach", "szivárogtatás", "config", "backup", "database"
+KULCSSZAVAK = [
+    "password", "secret", "api_key", "dump", "leak", "breach", "szivárogtatás",
+    "config", "backup", "admin", "root", "token", "jelszó", "titkos"
 ]
 
-BELPOLITIKAI_KULCSSZAVAK = [
-    "orbán", "magyar péter", "tisza párt", "fidesz", "dk", "momentum", "kormány", "választás"
-]
-
-VILAGPOLITIKAI_KULCSSZAVAK = [
-    "trump", "putin", "zelenszkij", "ukrajna", "oroszország", "kína", "izrael", "gáza"
-]
-
-FIGYELT_KULCSSZAVAK = TECH_KULCSSZAVAK + BELPOLITIKAI_KULCSSZAVAK + VILAGPOLITIKAI_KULCSSZAVAK
-
-# Statisztika
+# Statisztika napi diagramhoz
 stats = {"total": 0}
 site_stats = {}
 
@@ -57,7 +47,6 @@ def send_daily_report():
         kuld_discordra("📊 Napi jelentés: Ma nem volt találat.")
         return
 
-    # Pie chart készítése
     labels = list(site_stats.keys())
     sizes = list(site_stats.values())
 
@@ -90,22 +79,11 @@ def load_sites():
         log("sites.json nem található")
         return ["https://paste.org/archive"]
 
-def teljes_cikk_letoltese(url):
-    try:
-        headers = {"User-Agent": "Mozilla/5.0 (compatible; VeloxCrawler/2.0)"}
-        resp = requests.get(url, headers=headers, timeout=15)
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, "html.parser")
-        paragraphs = [p.get_text().strip() for p in soup.find_all("p") if len(p.get_text().strip()) > 50]
-        return "\n\n".join(paragraphs[:25])
-    except Exception:
-        return ""
-
 def main():
     mar_ellenorzott = set()
     last_report_date = date.today()
 
-    log("🚀 Velox Crawler elindult - Napi jelentéssel")
+    log("🚀 Velox Crawler elindult - Napi diagram + crawl")
 
     kuld_discordra("✅ **Velox Crawler elindult** - Napi jelentés aktív")
 
@@ -120,34 +98,28 @@ def main():
 
             for site in sites:
                 try:
+                    headers = {"User-Agent": "Mozilla/5.0"}
+                    resp = requests.get(site, headers=headers, timeout=12)
+
                     if "paste.org" in site:
-                        headers = {"User-Agent": "Mozilla/5.0"}
-                        resp = requests.get(site, headers=headers, timeout=12)
                         soup = BeautifulSoup(resp.text, "html.parser")
                         linkek = ["https://paste.org" + a["href"] for a in soup.find_all("a", href=True) if a["href"].startswith("/paste/")]
 
-                        for link in linkek[:12]:
+                        for link in linkek[:15]:
                             if link in mar_ellenorzott: continue
 
                             raw_resp = requests.get(link.replace("/paste/", "/raw/"), timeout=10)
                             if raw_resp.status_code != 200: continue
 
                             szoveg = raw_resp.text
-                            szoveg_low = szoveg.lower()
+                            talalt = [kw for kw in KULCSSZAVAK if kw in szoveg.lower()]
 
-                            talalt = [kw for kw in FIGYELT_KULCSSZAVAK if kw in szoveg_low]
-                            emailek = list(set(re.findall(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", szoveg)))
-
-                            if talalt or emailek:
-                                description = f"**Forrás:** {link}\n**Idő:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                                if talalt: description += f"⚠️ Kulcsszavak: {', '.join(talalt)}\n"
-                                if emailek: description += f"📧 E-mailek: {', '.join(emailek[:10])}\n"
-
+                            if talalt or len(szoveg) > 500:
                                 embed = {
-                                    "title": "📋 Paste / Dump Találat",
+                                    "title": "📋 Találat",
                                     "url": link,
                                     "color": 15158332,
-                                    "description": description[:4000]
+                                    "description": f"**Idő:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n**Kulcsszavak:** {', '.join(talalt) if talalt else 'Hosszú szöveg'}"
                                 }
                                 kuld_discordra(embed=embed)
 
@@ -159,16 +131,16 @@ def main():
                 except Exception as e:
                     log(f"Hiba ({site}): {e}")
 
-            if len(mar_ellenorzott) > 8000:
+            if len(mar_ellenorzott) > 10000:
                 mar_ellenorzott.clear()
                 log("Emlékezet törölve")
 
             log("Ciklus kész")
-            time.sleep(300)
+            time.sleep(240)
 
         except Exception as e:
             log(f"KRITIKUS HIBA: {e}")
-            time.sleep(180)
+            time.sleep(120)
 
 
 if __name__ == "__main__":
