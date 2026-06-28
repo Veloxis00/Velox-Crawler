@@ -78,7 +78,7 @@ def main():
     mar_ellenorzott = set()
     log("🚀 Velox Crawler elindult - Teljes kulcsszó készlet (tech + belpolitika + világ)")
 
-    kuld_discordra("✅ **Velox Crawler elindult**
+    kuld_discordra("✅ **Velox Crawler elindult** - Teljes kulcsszó készlettel")
 
     while True:
         try:
