@@ -18,9 +18,10 @@ KULCSSZAVAK = [
     "config", "backup", "admin", "root", "token", "jelszó", "titkos"
 ]
 
-# Statisztika napi diagramhoz
+# Statisztika
 stats = {"total": 0}
 site_stats = {}
+last_report_date = date.today()
 
 def log(uzenet):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -37,39 +38,42 @@ def kuld_discordra(content=None, embed=None, file=None):
     if file:
         files = {'file': file}
     try:
-        requests.post(DISCORD_WEBHOOK_URL, data=payload, files=files, timeout=20)
+        requests.post(DISCORD_WEBHOOK_URL, data=payload, files=files, timeout=25)
     except Exception as e:
         log(f"Discord hiba: {e}")
 
 def send_daily_report():
-    global site_stats, stats
-    if not site_stats:
-        kuld_discordra("📊 Napi jelentés: Ma nem volt találat.")
-        return
+    global site_stats, stats, last_report_date
+    try:
+        if not site_stats:
+            kuld_discordra("📊 Napi jelentés: Ma nem volt találat.")
+        else:
+            labels = list(site_stats.keys())
+            sizes = list(site_stats.values())
 
-    labels = list(site_stats.keys())
-    sizes = list(site_stats.values())
+            fig, ax = plt.subplots(figsize=(8, 6))
+            ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90)
+            ax.axis('equal')
+            ax.set_title(f"Napi Crawler Jelentés - {date.today()}")
 
-    fig, ax = plt.subplots(figsize=(8, 6))
-    ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90)
-    ax.axis('equal')
-    ax.set_title(f"Napi Crawler Jelentés - {date.today()}")
+            buf = io.BytesIO()
+            plt.savefig(buf, format='png', bbox_inches='tight')
+            buf.seek(0)
 
-    buf = io.BytesIO()
-    plt.savefig(buf, format='png', bbox_inches='tight')
-    buf.seek(0)
+            embed = {
+                "title": "📊 Napi Összefoglaló",
+                "description": f"**Dátum:** {date.today()}\n**Összes találat:** {stats['total']}",
+                "color": 3447003
+            }
+            kuld_discordra(embed=embed, file=("daily_report.png", buf, "image/png"))
 
-    embed = {
-        "title": "📊 Napi Összefoglaló",
-        "description": f"**Dátum:** {date.today()}\n**Összes találat:** {stats['total']}",
-        "color": 3447003
-    }
-
-    kuld_discordra(embed=embed, file=("daily_report.png", buf, "image/png"))
-
-    # Reset
-    site_stats.clear()
-    stats["total"] = 0
+        # Reset
+        site_stats.clear()
+        stats["total"] = 0
+        last_report_date = date.today()
+        log("Napi jelentés elküldve")
+    except Exception as e:
+        log(f"Napi jelentés hiba: {e}")
 
 def load_sites():
     try:
@@ -81,18 +85,18 @@ def load_sites():
 
 def main():
     mar_ellenorzott = set()
+    global last_report_date
     last_report_date = date.today()
 
-    log("🚀 Velox Crawler elindult - Napi diagram + crawl")
+    log("🚀 Velox Crawler elindult - Napi diagram aktív")
 
-    kuld_discordra("✅ **Velox Crawler elindult** - Napi jelentés aktív")
+    kuld_discordra("✅ **Velox Crawler elindult** - Napi jelentés bekapcsolva")
 
     while True:
         try:
-            current_date = date.today()
-            if current_date != last_report_date:
+            # Napi jelentés ellenőrzés
+            if date.today() != last_report_date:
                 send_daily_report()
-                last_report_date = current_date
 
             sites = load_sites()
 
