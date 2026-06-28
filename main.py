@@ -15,23 +15,22 @@ DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1520529578928377886/dJVh
 # ====================== KULCSSZAVAK ======================
 TECH_KULCSSZAVAK = [
     "password", "secret", "api_key", "apikey", "access_key", "private_key", "credential",
-    "token", "dump", "leak", "breach", "szivarogtatas", "config", "backup", "database"
+    "token", "dump", "leak", "breach", "szivárogtatás", "config", "backup", "database"
 ]
 
 BELPOLITIKAI_KULCSSZAVAK = [
-    "orban", "magyar peter", "tisza part", "fidesz", "dk", "momentum", "kormany", "valasztas","hivatal"
+    "orbán", "magyar péter", "tisza párt", "fidesz", "dk", "momentum", "kormány", "választás"
 ]
 
 VILAGPOLITIKAI_KULCSSZAVAK = [
-    "trump", "putin", "zelenszkij", "ukrajna", "oroszorszag", "kina", "izrael", "gaza"
+    "trump", "putin", "zelenszkij", "ukrajna", "oroszország", "kína", "izrael", "gáza"
 ]
 
 FIGYELT_KULCSSZAVAK = TECH_KULCSSZAVAK + BELPOLITIKAI_KULCSSZAVAK + VILAGPOLITIKAI_KULCSSZAVAK
 
-# Statisztika napi diagramhoz
+# Statisztika
 stats = {"total": 0}
 site_stats = {}
-last_report_date = date.today()
 
 def log(uzenet):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -48,41 +47,40 @@ def kuld_discordra(content=None, embed=None, file=None):
     if file:
         files = {'file': file}
     try:
-        requests.post(DISCORD_WEBHOOK_URL, data=payload, files=files, timeout=25)
+        requests.post(DISCORD_WEBHOOK_URL, data=payload, files=files, timeout=20)
     except Exception as e:
         log(f"Discord hiba: {e}")
 
 def send_daily_report():
-    global site_stats, stats, last_report_date
-    try:
-        if not site_stats:
-            kuld_discordra("📊 Napi jelentés: Ma nem volt találat.")
-        else:
-            labels = list(site_stats.keys())
-            sizes = list(site_stats.values())
+    global site_stats, stats
+    if not site_stats:
+        kuld_discordra("📊 Napi jelentés: Ma nem volt találat.")
+        return
 
-            fig, ax = plt.subplots(figsize=(8, 6))
-            ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90)
-            ax.axis('equal')
-            ax.set_title(f"Napi Crawler Jelentés - {date.today()}")
+    # Pie chart készítése
+    labels = list(site_stats.keys())
+    sizes = list(site_stats.values())
 
-            buf = io.BytesIO()
-            plt.savefig(buf, format='png', bbox_inches='tight')
-            buf.seek(0)
+    fig, ax = plt.subplots(figsize=(8, 6))
+    ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=90)
+    ax.axis('equal')
+    ax.set_title(f"Napi Crawler Jelentés - {date.today()}")
 
-            embed = {
-                "title": "📊 Napi Összefoglaló",
-                "description": f"**Dátum:** {date.today()}\n**Összes találat:** {stats['total']}",
-                "color": 3447003
-            }
-            kuld_discordra(embed=embed, file=("daily_report.png", buf, "image/png"))
+    buf = io.BytesIO()
+    plt.savefig(buf, format='png', bbox_inches='tight')
+    buf.seek(0)
 
-        site_stats.clear()
-        stats["total"] = 0
-        last_report_date = date.today()
-        log("Napi jelentés elküldve")
-    except Exception as e:
-        log(f"Napi jelentés hiba: {e}")
+    embed = {
+        "title": "📊 Napi Összefoglaló",
+        "description": f"**Dátum:** {date.today()}\n**Összes találat:** {stats['total']}",
+        "color": 3447003
+    }
+
+    kuld_discordra(embed=embed, file=("daily_report.png", buf, "image/png"))
+
+    # Reset
+    site_stats.clear()
+    stats["total"] = 0
 
 def load_sites():
     try:
@@ -92,46 +90,64 @@ def load_sites():
         log("sites.json nem található")
         return ["https://paste.org/archive"]
 
+def teljes_cikk_letoltese(url):
+    try:
+        headers = {"User-Agent": "Mozilla/5.0 (compatible; VeloxCrawler/2.0)"}
+        resp = requests.get(url, headers=headers, timeout=15)
+        resp.raise_for_status()
+        soup = BeautifulSoup(resp.text, "html.parser")
+        paragraphs = [p.get_text().strip() for p in soup.find_all("p") if len(p.get_text().strip()) > 50]
+        return "\n\n".join(paragraphs[:25])
+    except Exception:
+        return ""
+
 def main():
     mar_ellenorzott = set()
-    global last_report_date
     last_report_date = date.today()
 
-    log("🚀 Velox Crawler elindult - Napi diagram aktív")
+    log("🚀 Velox Crawler elindult - Napi jelentéssel")
 
     kuld_discordra("✅ **Velox Crawler elindult** - Napi jelentés aktív")
 
     while True:
         try:
-            if date.today() != last_report_date:
+            current_date = date.today()
+            if current_date != last_report_date:
                 send_daily_report()
+                last_report_date = current_date
 
             sites = load_sites()
 
             for site in sites:
                 try:
-                    headers = {"User-Agent": "Mozilla/5.0"}
-                    resp = requests.get(site, headers=headers, timeout=12)
-
                     if "paste.org" in site:
+                        headers = {"User-Agent": "Mozilla/5.0"}
+                        resp = requests.get(site, headers=headers, timeout=12)
                         soup = BeautifulSoup(resp.text, "html.parser")
                         linkek = ["https://paste.org" + a["href"] for a in soup.find_all("a", href=True) if a["href"].startswith("/paste/")]
 
-                        for link in linkek[:15]:
+                        for link in linkek[:12]:
                             if link in mar_ellenorzott: continue
 
                             raw_resp = requests.get(link.replace("/paste/", "/raw/"), timeout=10)
                             if raw_resp.status_code != 200: continue
 
                             szoveg = raw_resp.text
-                            talalt = [kw for kw in KULCSSZAVAK if kw in szoveg.lower()]
+                            szoveg_low = szoveg.lower()
 
-                            if talalt or len(szoveg) > 500:
+                            talalt = [kw for kw in FIGYELT_KULCSSZAVAK if kw in szoveg_low]
+                            emailek = list(set(re.findall(r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}", szoveg)))
+
+                            if talalt or emailek:
+                                description = f"**Forrás:** {link}\n**Idő:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                                if talalt: description += f"⚠️ Kulcsszavak: {', '.join(talalt)}\n"
+                                if emailek: description += f"📧 E-mailek: {', '.join(emailek[:10])}\n"
+
                                 embed = {
-                                    "title": "📋 Találat",
+                                    "title": "📋 Paste / Dump Találat",
                                     "url": link,
                                     "color": 15158332,
-                                    "description": f"**Idő:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n**Kulcsszavak:** {', '.join(talalt) if talalt else 'Hosszú szöveg'}"
+                                    "description": description[:4000]
                                 }
                                 kuld_discordra(embed=embed)
 
@@ -143,16 +159,16 @@ def main():
                 except Exception as e:
                     log(f"Hiba ({site}): {e}")
 
-            if len(mar_ellenorzott) > 10000:
+            if len(mar_ellenorzott) > 8000:
                 mar_ellenorzott.clear()
                 log("Emlékezet törölve")
 
             log("Ciklus kész")
-            time.sleep(240)
+            time.sleep(300)
 
         except Exception as e:
             log(f"KRITIKUS HIBA: {e}")
-            time.sleep(120)
+            time.sleep(180)
 
 
 if __name__ == "__main__":
