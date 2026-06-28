@@ -19,11 +19,11 @@ TECH_KULCSSZAVAK = [
 ]
 
 BELPOLITIKAI_KULCSSZAVAK = [
-    "orbán", "magyar péter", "tisza párt", "fidesz", "dk", "momentum", "kormány", "választás"
+    "orbán", "magyar péter", "tisza párt", "fidesz", "dk", "momentum", "kormány", "választás","hivatal","ukrajna","elszámoltatás","ügyézség"
 ]
 
 VILAGPOLITIKAI_KULCSSZAVAK = [
-    "trump", "putin", "zelenszkij", "ukrajna", "oroszország", "kína", "izrael", "gáza"
+    "trump", "putin", "zelenszkij", "ukrajna", "oroszország", "kína", "izrael", "gáza","war"
 ]
 
 FIGYELT_KULCSSZAVAK = TECH_KULCSSZAVAK + BELPOLITIKAI_KULCSSZAVAK + VILAGPOLITIKAI_KULCSSZAVAK
