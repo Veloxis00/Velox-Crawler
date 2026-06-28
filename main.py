@@ -10,50 +10,71 @@ from datetime import datetime
 # ====================== HARDKODOLT WEBHOOK ======================
 DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1520529578928377886/dJVhNw34V8YYp-IMSOprhx2qQ9MU1lLs7b0BpZKmiMqe-VZclK3EW7bccaZX5Vk6dooZ"
 
-# ====================== KULCSSZAVAK (könnyen bővíthető) ======================
-
-# Technikai / Biztonsági kulcsszavak (angol + magyar)
+# ====================== KULCSSZAVAK ======================
 TECH_KULCSSZAVAK = [
-    # Angol
     "password", "secret", "api_key", "apikey", "access_key", "private_key", "credential",
-    "token", "dump", "leak", "breach", "data breach", "ransomware", "exploit", "vulnerability",
-    "config", "backup", "database", "ssh", "ftp", "vpn",
-    # Magyar
-    "jelszó", "titkos", "kulcs", "szivárogtatás", "adatbázis", "biztonsági rés", "kizsákmányolás"
+    "token", "dump", "leak", "breach", "szivárogtatás", "config", "backup", "database", "ssh", "ftp"
 ]
 
-# Belpolitikai / Magyar politikai kulcsszavak
 BELPOLITIKAI_KULCSSZAVAK = [
-    "orbán", "magyar péter", "tisza párt", "fidesz", "dk", "momentum", "miép", "jobbik",
-    "kormány", "miniszterelnök", "parlament", "választás", "korrupció", "pénz", "hivatal",
-    "szuverenitás", "brüsszel", "brüsszeli"
+    "orbán", "magyar péter", "tisza párt", "fidesz", "dk", "momentum", "miép", "kormány", "választás", "korrupció"
 ]
 
-# Világpolitikai kulcsszavak
 VILAGPOLITIKAI_KULCSSZAVAK = [
-    "trump", "biden", "putin", "zelenszkij", "ukrajna", "oroszország", "kína", "taiwan",
-    "izrael", "palesztina", "gáza", "iráni", "észak-korea", "nato", "eu", "brüsszel"
+    "trump", "putin", "zelenszkij", "ukrajna", "oroszország", "kína", "izrael", "gáza", "nato", "eu"
 ]
 
-# Összes kulcsszó egyben
 FIGYELT_KULCSSZAVAK = TECH_KULCSSZAVAK + BELPOLITIKAI_KULCSSZAVAK + VILAGPOLITIKAI_KULCSSZAVAK
 
 def log(uzenet):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     print(f"[{timestamp}] {uzenet}")
 
-def kuld_discordra(content=None, embed=None):
+def kuld_discordra(content=None, embed=None, image_url=None):
     if not DISCORD_WEBHOOK_URL: return
     payload = {"username": "Velox Crawler"}
+    files = None
+
     if embed:
         payload["embeds"] = [embed]
-    else:
+    elif content:
         payload["content"] = content
+
     try:
-        requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=15)
-        log("Discord üzenet elküldve")
+        if image_url:
+            img_resp = requests.get(image_url, timeout=15)
+            if img_resp.status_code == 200:
+                files = {'file': ('image.jpg', img_resp.content, 'image/jpeg')}
+                response = requests.post(DISCORD_WEBHOOK_URL, data=payload, files=files, timeout=25)
+            else:
+                response = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=20)
+        else:
+            response = requests.post(DISCORD_WEBHOOK_URL, json=payload, timeout=20)
+
+        if response.status_code in (200, 204):
+            log("Discordra elküldve" + (" + képpel" if image_url else ""))
+        else:
+            log(f"Discord hiba: {response.status_code}")
     except Exception as e:
         log(f"Discord hiba: {e}")
+
+def find_and_send_images(url):
+    """Oldalról képek keresése és küldése"""
+    try:
+        headers = {"User-Agent": "Mozilla/5.0"}
+        resp = requests.get(url, headers=headers, timeout=12)
+        soup = BeautifulSoup(resp.text, "html.parser")
+        images = []
+
+        for img in soup.find_all("img"):
+            src = img.get("src") or img.get("data-src")
+            if src and src.startswith("http") and len(src) > 15:
+                images.append(src)
+
+        for img_url in images[:3]:  # max 3 képet küldünk
+            kuld_discordra(image_url=img_url)
+    except Exception as e:
+        log(f"Kép letöltési hiba: {e}")
 
 def load_sites():
     try:
@@ -74,15 +95,11 @@ def teljes_cikk_letoltese(url):
     except Exception:
         return ""
 
-def is_high_priority(title, content):
-    text = (title + " " + content).lower()
-    return any(kw in text for kw in TECH_KULCSSZAVAK)
-
 def main():
     mar_ellenorzott = set()
-    log("🚀 Velox Crawler elindult - Kétnyelvű keresés (magyar + angol)")
+    log("🚀 Velox Crawler elindult - Képekkel + kétnyelvű keresés")
 
-    kuld_discordra("✅ **Velox Crawler elindult** - Magyar + Angol kulcsszavakkal")
+    kuld_discordra("✅ **Velox Crawler elindult** - Képek + teljes kulcsszó készlet")
 
     while True:
         try:
@@ -90,14 +107,13 @@ def main():
 
             for site in sites:
                 try:
-                    if any(x in site for x in ["paste.org", "intelx", "dehashed", "snusbase", "leakcheck"]):
-                        # Paste / Leak oldalak
+                    if "paste.org" in site:
                         headers = {"User-Agent": "Mozilla/5.0"}
                         resp = requests.get(site, headers=headers, timeout=12)
                         soup = BeautifulSoup(resp.text, "html.parser")
                         linkek = ["https://paste.org" + a["href"] for a in soup.find_all("a", href=True) if a["href"].startswith("/paste/")]
 
-                        for link in linkek[:15]:
+                        for link in linkek[:12]:
                             if link in mar_ellenorzott: continue
 
                             raw_resp = requests.get(link.replace("/paste/", "/raw/"), timeout=10)
@@ -111,8 +127,8 @@ def main():
 
                             if talalt or emailek:
                                 description = f"**Forrás:** {link}\n**Idő:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                                if talalt: description += f"⚠️ Kulcsszavak: {', '.join(talalt[:12])}\n"
-                                if emailek: description += f"📧 E-mailek: {', '.join(emailek[:12])}\n"
+                                if talalt: description += f"⚠️ Kulcsszavak: {', '.join(talalt)}\n"
+                                if emailek: description += f"📧 E-mailek: {', '.join(emailek[:10])}\n"
 
                                 embed = {
                                     "title": "📋 Paste / Dump Találat",
@@ -122,28 +138,32 @@ def main():
                                 }
                                 kuld_discordra(embed=embed)
 
+                                # Képek küldése
+                                find_and_send_images(link)
+
                             mar_ellenorzott.add(link)
 
                     else:
                         # Híroldalak
                         feed = feedparser.parse(site)
-                        for entry in feed.entries[:6]:
+                        for entry in feed.entries[:5]:
                             link = entry.link
                             if link in mar_ellenorzott: continue
 
                             title = entry.get("title", "")
                             full_text = teljes_cikk_letoltese(link)
 
-                            priority = is_high_priority(title, full_text)
-
                             embed = {
-                                "title": f"{'🔴 ' if priority else '📰 '} {title[:170]}",
+                                "title": f"📰 {title[:170]}",
                                 "description": full_text[:3800] + ("..." if len(full_text) > 3800 else ""),
                                 "url": link,
-                                "color": 15158332 if priority else 3447003,
+                                "color": 3447003,
                                 "footer": {"text": f"Idő: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"}
                             }
                             kuld_discordra(embed=embed)
+
+                            # Képek küldése a cikkből
+                            find_and_send_images(link)
 
                             mar_ellenorzott.add(link)
 
